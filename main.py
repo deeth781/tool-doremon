@@ -1,110 +1,103 @@
-import os
-import json
-import base64
-import requests
-import subprocess
+import os, sys, json, base64, requests, time
 import importlib.util
-from time import sleep
 from pathlib import Path
-from typing import Dict
-from pyfiglet import Figlet
-from termcolor import colored
+from colorama import init, Fore
+from random import choice
+from platform import system
 
-# ====== CONFIG ======
-MENU_URL = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/menu.json"  # <- Thay link tại đây
-ENCODED_MENU_FILE = "menu_encoded.json"
-HIDDEN_DIR = ".data_tool_hidden"
+init()
 
-# Tạo thư mục ẩn nếu chưa có
-os.makedirs(HIDDEN_DIR, exist_ok=True)
+# ====== CÀI THƯ VIỆN ====== #
+try:
+    import pyfiglet
+except ImportError:
+    os.system("pip install pyfiglet colorama requests")
+    import pyfiglet
 
-# Fake typing
-def fake_type(text, delay=0.01):
-    for char in text:
-        print(char, end='', flush=True)
-        sleep(delay)
+# ====== THƯ MỤC TOOL ====== #
+TOOL_DIR = ".tools"  # dấu chấm để ẩn thư mục
+
+def fake_typing(text, delay=0.02):
+    for c in text:
+        sys.stdout.write(c)
+        sys.stdout.flush()
+        time.sleep(delay)
     print()
 
-# Loading effect
-def loading(msg="Đang khởi chạy tool"):
-    for _ in range(3):
-        print(f"{msg}.", end="\r")
-        sleep(0.2)
-        print(f"{msg}..", end="\r")
-        sleep(0.2)
-        print(f"{msg}...", end="\r")
-        sleep(0.2)
-    print(" " * 50, end="\r")
+def ascii_title(text):
+    fonts = ["slant", "standard", "3-d", "3x5", "banner3-D", "isometric1", "bubble", "digital"]
+    font = choice(fonts)
+    return pyfiglet.figlet_format(text, font=font)
 
-# Tải file và mã hóa base64
-def fetch_and_encode_menu(url: str) -> str:
-    response = requests.get(url)
-    if response.status_code == 200:
-        encoded = base64.b64encode(response.text.encode()).decode()
-        with open(ENCODED_MENU_FILE, "w") as f:
-            json.dump({"data": encoded}, f)
-        return encoded
-    else:
-        raise Exception("Không thể tải menu.json")
+def download_menu():
+    MENU_URL = "https://raw.githubusercontent.com/deeth781/tool-doremon/main/menu.json"
+    response = requests.get(MENU_URL)
+    if response.status_code != 200:
+        print(Fore.RED + "[!] Không tải được menu.json")
+        sys.exit()
+    return response.json()
 
-# Giải mã menu
-def decode_menu_file(filepath: str) -> Dict:
-    with open(filepath, "r") as f:
-        data = json.load(f)
-    decoded = base64.b64decode(data["data"]).decode()
-    return json.loads(decoded)
+def decode_base64_url(b64):
+    return base64.b64decode(b64.encode()).decode()
 
-# Tự cài thư viện nếu thiếu
-def ensure_requirements():
+def download_and_run_tool(tool):
+    name = tool["name"]
+    url = decode_base64_url(tool["code"])
+    filename = url.split("/")[-1]
+
+    Path(TOOL_DIR).mkdir(exist_ok=True)
+    path = os.path.join(TOOL_DIR, filename)
+
+    # Tải file về
     try:
-        import pyfiglet
-        import termcolor
-    except ImportError:
-        subprocess.check_call(["pip", "install", "pyfiglet", "termcolor"])
+        r = requests.get(url)
+        r.raise_for_status()
+        with open(path, "wb") as f:
+            f.write(r.content)
+        print(Fore.GREEN + f"[✓] Đã tải {filename}")
+    except:
+        print(Fore.RED + f"[!] Lỗi khi tải {filename}")
+        return
 
-# Hiển thị menu đẹp
-def show_ascii_title():
-    f = Figlet(font='slant')
-    print(colored(f.renderText('Main Tool'), 'cyan'))
-
-# Hiển thị menu các tool con
-def show_menu(menu: Dict):
-    for i, tool in enumerate(menu["tools"], 1):
-        print(colored(f"[{i}] {tool['name']}", 'green'))
-
-# Tải và chạy tool con
-def run_tool(tool: Dict):
-    tool_url = tool["url"]
-    tool_filename = os.path.join(HIDDEN_DIR, tool["name"] + ".py")
-    if not os.path.exists(tool_filename):
-        with open(tool_filename, "w") as f:
-            f.write(requests.get(tool_url).text)
-    subprocess.run(["python", tool_filename])
-
-# Xóa file menu gốc
-def secure_delete_file(file_path: str):
-    if os.path.exists(file_path):
-        os.remove(file_path)
-
-# MAIN
-def main():
-    ensure_requirements()
-    show_ascii_title()
-    loading("Đang tải menu")
-    encoded = fetch_and_encode_menu(MENU_URL)
-    menu = decode_menu_file(ENCODED_MENU_FILE)
-    secure_delete_file(ENCODED_MENU_FILE)
-    fake_type("Menu đã tải và mã hóa. Danh sách tool:", 0.03)
-    show_menu(menu)
-
+    # Chạy file
     try:
-        choice = int(input(colored("Chọn tool để chạy: ", "yellow")))
-        if 1 <= choice <= len(menu["tools"]):
-            run_tool(menu["tools"][choice - 1])
-        else:
-            print(colored("Lựa chọn không hợp lệ!", "red"))
+        spec = importlib.util.spec_from_file_location("module.name", path)
+        foo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(foo)
     except Exception as e:
-        print(colored(f"Lỗi: {e}", "red"))
+        print(Fore.RED + f"[!] Lỗi khi chạy {filename}: {e}")
+
+def hide_folder(path):
+    if system() == "Windows":
+        os.system(f'attrib +h "{path}"')
+    else:
+        # UNIX hệ thống đã mặc định ẩn với "." đầu tên
+        pass
+
+def main():
+    os.system("cls" if os.name == "nt" else "clear")
+    print(Fore.CYAN + ascii_title("Minato CLI Tool"))
+    fake_typing(Fore.YELLOW + "[•] Đang tải menu...", 0.03)
+
+    tools = download_menu()
+    hide_folder(TOOL_DIR)
+
+    for i, tool in enumerate(tools):
+        print(Fore.GREEN + f"{i+1}. {tool['name']}")
+    print()
+
+    try:
+        choice_index = int(input(Fore.CYAN + "Chọn tool (số): ")) - 1
+        if choice_index not in range(len(tools)):
+            raise ValueError
+        download_and_run_tool(tools[choice_index])
+    except:
+        print(Fore.RED + "[!] Lựa chọn không hợp lệ")
+
+    # Xóa menu.json gốc (nếu tồn tại)
+    menu_file = "menu.json"
+    if os.path.exists(menu_file):
+        os.remove(menu_file)
 
 if __name__ == "__main__":
     main()
