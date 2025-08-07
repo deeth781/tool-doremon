@@ -23,13 +23,15 @@ def fake_typing(text, delay=0.03):
 def show_banner():
     console.print("""
 [bold magenta]
-──────▄▀▄─────▄▀▄
-─────▄█░░▀▀▀▀▀░░█▄
-─▄▄──█░░░░░░░░░░░█──▄▄
-█▄▄█─█░░▀░░┬░░▀░░█─█▄▄█
+／＞　 フ
+| 　_　_|   🍩
+／` ミ＿xノ 
+／　　　　 |
+(　 ヽ＿ヽ_)__)
+＼二)
 [/bold magenta]
 [bold cyan]Tool Lấy Danh Sách Nhóm [/bold cyan]
-[green]By: Minato[/green]
+[green]By: Doremon[/green]
 """)
 
 def get_random_color():
@@ -263,4 +265,5 @@ if __name__ == '__main__':
                     pyperclip.copy(result["threads"][index]["thread_id"])
                     console.print("[green]📋 Đã copy ID nhóm vào clipboard.[/green]")
                 else:
+
                     console.print("[yellow]⚠️ Số không hợp lệ.[/yellow]")
